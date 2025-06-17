@@ -9,35 +9,34 @@ from ollama import Client
 import re
 
 pdf_path = "tcs_transcript1.pdf" 
-def extract_clean_transcript(pdf_path, start_page=1):
+def extract_clean_transcript(pdf_path, start_page=1, end_page=13):
     transcript = ""
     with pdfplumber.open(pdf_path) as pdf:
-        for page in pdf.pages[start_page:]:
+        for page in pdf.pages[start_page:end_page]:
             text = page.extract_text()
             if text:
                 transcript += text + "\n"
     return transcript
 
-clean_transcript = extract_clean_transcript(pdf_path, start_page=1)  
+clean_transcript = extract_clean_transcript(pdf_path, start_page=1, end_page=13)  
 
 ollama_client = Client(host="http://127.0.0.1:11434")
 DEEPSEEK_MODEL = "deepseek-r1:7b"
 def ask_deepseek(clean_transcript: str ) -> str:
-    prompt = f"""
-You are given a document i.e. Transcript.
-
-Your task is to create a summary of the Transcript.
-STEPS:
-- Carefully read the Transcript.
-- Extract the  meaningful, and relevant insights from the Transcript.
-- Ensure the summary document reads like notes that are complete, natural, and coherent write-up 
-- Preferably use bullet points.
-- Include all the data, figures, events, and key commentary 
-- Do not include the Question and Answer round in the summary.
-
+    prompt = f"""<|system|>You are a helpful financial analyst assistant.<|user|>
+Let's generate a consolidated summary of the two source document: a transcript of an earnings call (conference call) 
+1) Read through the entire transcript carefully to understand the context.
+2) Identify and extract the key topics and insights discussed in depth from the document.
+3) Pay attention to any numerical data presented in the document.
+4) When including numbers in the summary, ensure they are:
+	a) Explicitly stated values from the document (do not fabricate numbers).
+	b) Appropriately represented with clear context from the document.
+5) Synthesize the extracted information and numbers into a concise summary
+ that flows logically.
 Documents:
 === Transcript ===
 {clean_transcript}
+
 """
 
     response = ollama_client.chat(
@@ -58,36 +57,35 @@ import pdfplumber
 from ollama import Client
 import re
 
-pdf_path = "tcs_ppt1.pdf"  
-def extract_clean_presentation(pdf_path, start_page=1):
-    presentation = ""
+pdf_path = "notes1.pdf"  
+def extract_clean_notes(pdf_path, start_page=0):
+    notes = ""
     with pdfplumber.open(pdf_path) as pdf:
         for page in pdf.pages[start_page:]:
             text = page.extract_text()
             if text:
-                presentation += text + "\n"
-    return presentation
+                notes += text + "\n"
+    return notes
 
-clean_presentation = extract_clean_presentation(pdf_path, start_page=1)  
+clean_notes = extract_clean_notes(pdf_path, start_page=1)  
 
 ollama_client = Client(host="http://127.0.0.1:11434")
 DEEPSEEK_MODEL = "deepseek-r1:7b"
-def ask_deepseek(clean_presentation: str ) -> str:
-    prompt = f"""
-You are given a document i.e. presentation.
-
-Your task is to create a summary of the presentation.
-STEPS:
-- Carefully read the presentation.
-- Extract the  meaningful, and relevant insights from the presentation
-- Ensure the summary document reads like notes that are complete, natural, and coherent write-up 
-- Preferably use bullet points.
-- Include all the data, figures, events, and key commentary 
-- Do not include the Question and Answer round in the summary.
-
+def ask_deepseek(clean_notes: str ) -> str:
+    prompt = f"""<|system|>You are a helpful financial analyst assistant.<|user|>
+Let's generate a consolidated summary of the two source document: a transcript of an earnings call (conference call) 
+1) Read through the entire transcript carefully to understand the context.
+2) Identify and extract the key topics and insights discussed in depth from the document.
+3) Pay attention to any numerical data presented in the document.
+4) When including numbers in the summary, ensure they are:
+	a) Explicitly stated values from the document (do not fabricate numbers).
+	b) Appropriately represented with clear context from the document.
+5) Synthesize the extracted information and numbers into a concise summary
+ that flows logically.
 Documents:
-=== presentation ===
-{clean_presentation}
+=== Notes ===
+{clean_notes}
+
 """
 
     response = ollama_client.chat(

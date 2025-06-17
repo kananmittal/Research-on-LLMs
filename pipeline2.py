@@ -8,36 +8,34 @@ import pdfplumber
 from ollama import Client
 import re
 
-def extract_clean_transcript(pdf_path, start_page=1):
+def extract_clean_transcript(pdf_path, start_page=1, end_page=13):
     transcript = ""
     with pdfplumber.open(pdf_path) as pdf:
-        for page in pdf.pages[start_page:]:
+        for page in pdf.pages[start_page:end_page]:
             text = page.extract_text()
             if text:
                 transcript += text + "\n"
     return transcript
 
 pdf_path = "tcs_transcript1.pdf"  
-clean_transcript = extract_clean_transcript(pdf_path, start_page=1)  
+clean_transcript = extract_clean_transcript(pdf_path, start_page=1, end_page=13)  
 
 pdf_path = "notes1.pdf"  
-extract_notes = (pdf_path)  
+extract_notes = (pdf_path,)  
 
 ollama_client = Client(host="http://127.0.0.1:11434")
 DEEPSEEK_MODEL = "deepseek-r1:7b"
 def ask_deepseek(clean_transcript: str, extract_notes: str ) -> str:
     prompt = f"""
-You are given two documents i.e. Notes and Transcript.
-
-Your task is to create a summary of both.
-STEPS:
-- Carefully read the Notes and Transcript.
-- Compare them, remove anything that appears in both, and return only the unique content from each in detail.
-- Ensure the summary document is complete, natural, and coherent write-up 
-- Preferably use bullet points.
-- Include all the data, figures, events, and key commentary 
-- Do not include the Question and Answer round in the summary.
-
+Let's generate a consolidated summary of the two source documents: a transcript of an earnings call (conference call) and a note (bullet form) derived from the same transcript
+1) Read through the entire transcript and notes carefully to understand the context.
+2) Identify and extract the key topics and insights discussed in depth from the documents.
+3) Pay attention to any numerical data presented in the documents.
+4) When including numbers in the summary, ensure they are:
+	a) Explicitly stated values from the documents (do not fabricate numbers).
+	b) Appropriately represented with clear context from the documents.
+5) Synthesize the extracted information and numbers into a concise summary
+ that flows logically.
 Documents:
 === Transcript ===
 {clean_transcript, extract_notes}

@@ -8,36 +8,35 @@ import pdfplumber
 from ollama import Client
 import re
 
-def extract_clean_transcript(pdf_path, start_page=1):
+def extract_clean_transcript(pdf_path, start_page=1, end_page=13):
     transcript = ""
     with pdfplumber.open(pdf_path) as pdf:
-        for page in pdf.pages[start_page:]:
+        for page in pdf.pages[start_page:end_page]:
             text = page.extract_text()
             if text:
                 transcript += text + "\n"
     return transcript
 
 pdf_path = "tcs_transcript1.pdf"  
-clean_transcript = extract_clean_transcript(pdf_path, start_page=1)  
+clean_transcript = extract_clean_transcript(pdf_path, start_page=1, end_page=13)  
 
 ollama_client = Client(host="http://127.0.0.1:11434")
 DEEPSEEK_MODEL = "deepseek-r1:7b"
 def ask_deepseek(clean_transcript: str ) -> str:
-    prompt = f"""
-You are given a document i.e. Transcript.
-
-Your task is to create a summary of the Transcript.
-STEPS:
-- Carefully read the Transcript.
-- Extract the  meaningful, and relevant insights from the Transcript.
-- Ensure the summary document reads like notes that are complete, natural, and coherent write-up 
-- Preferably use bullet points.
-- Include all the data, figures, events, and key commentary 
-- Do not include the Question and Answer round in the summary.
-
+    prompt = f"""<|system|>You are a helpful financial analyst assistant.<|user|>
+Let's generate a consolidated summary of the two source document: a transcript of an earnings call (conference call) 
+1) Read through the entire transcript carefully to understand the context.
+2) Identify and extract the key topics and insights discussed in depth from the document.
+3) Pay attention to any numerical data presented in the document.
+4) When including numbers in the summary, ensure they are:
+	a) Explicitly stated values from the document (do not fabricate numbers).
+	b) Appropriately represented with clear context from the document.
+5) Synthesize the extracted information and numbers into a concise summary
+ that flows logically.
 Documents:
 === Transcript ===
 {clean_transcript}
+
 """
 
     response = ollama_client.chat(
