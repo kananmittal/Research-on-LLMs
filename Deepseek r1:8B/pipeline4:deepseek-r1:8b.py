@@ -2,7 +2,12 @@ import pdfplumber
 from ollama import Client
 import re
 
-pdf_path = "tcs_transcript1.pdf" 
+import os
+from openai import OpenAI
+
+ollama_client = Client(host="http://127.0.0.1:11434")
+DEEPSEEK_MODEL = "deepseek-r1:8b"
+
 def extract_clean_transcript(pdf_path, start_page=1, end_page=13):
     transcript = ""
     with pdfplumber.open(pdf_path) as pdf:
@@ -12,10 +17,9 @@ def extract_clean_transcript(pdf_path, start_page=1, end_page=13):
                 transcript += text + "\n"
     return transcript
 
+pdf_path = "Transcript.pdf"  
 clean_transcript = extract_clean_transcript(pdf_path, start_page=1, end_page=13)  
 
-ollama_client = Client(host="http://127.0.0.1:11434")
-DEEPSEEK_MODEL = "deepseek-r1:7b"
 def ask_deepseek(clean_transcript: str ) -> str:
     prompt = f"""<|system|>You are a helpful financial analyst assistant.<|user|>
 Let's generate a consolidated summary of the two source document: a transcript of an earnings call (conference call) 
@@ -27,91 +31,34 @@ Let's generate a consolidated summary of the two source document: a transcript o
 	b) Appropriately represented with clear context from the document.
 5) Synthesize the extracted information and numbers into a concise summary
  that flows logically.
+6) Conserve all the important information from the transcript, so that you can use it to answer any question from it.
 Documents:
 === Transcript ===
 {clean_transcript}
-
 """
-
     response = ollama_client.chat(
         model=DEEPSEEK_MODEL,
         messages=[{"role": "user", "content": prompt}]
     )
     return response['message']['content']
 
-# Usage:
 Summary_text= ask_deepseek(clean_transcript)
 print(Summary_text)
 
 
-# In[3]:
-
-
-import pdfplumber
-from ollama import Client
-import re
-
-pdf_path = "notes1.pdf"  
-def extract_clean_notes(pdf_path, start_page=0):
-    notes = ""
-    with pdfplumber.open(pdf_path) as pdf:
-        for page in pdf.pages[start_page:]:
-            text = page.extract_text()
-            if text:
-                notes += text + "\n"
-    return notes
-
-clean_notes = extract_clean_notes(pdf_path, start_page=1)  
-
-ollama_client = Client(host="http://127.0.0.1:11434")
-DEEPSEEK_MODEL = "deepseek-r1:7b"
-def ask_deepseek(clean_notes: str ) -> str:
-    prompt = f"""<|system|>You are a helpful financial analyst assistant.<|user|>
-Let's generate a consolidated summary of the two source document: a transcript of an earnings call (conference call) 
-1) Read through the entire transcript carefully to understand the context.
-2) Identify and extract the key topics and insights discussed in depth from the document.
-3) Pay attention to any numerical data presented in the document.
-4) When including numbers in the summary, ensure they are:
-	a) Explicitly stated values from the document (do not fabricate numbers).
-	b) Appropriately represented with clear context from the document.
-5) Synthesize the extracted information and numbers into a concise summary
- that flows logically.
-Documents:
-=== Notes ===
-{clean_notes}
-
-"""
-
-    response = ollama_client.chat(
-        model=DEEPSEEK_MODEL,
-        messages=[{"role": "user", "content": prompt}]
-    )
-    return response['message']['content']
-
-# Usage:
-Summary_text1= ask_deepseek(clean_presentation)
-print(Summary_text1)
-
-
-# In[4]:
-
-
-def ask_deepseek(Summary_text: str, Summary_text1: str) -> str:
+def ask_deepseek(Summary_text: str, clean_transcript: str) -> str:
     prompt = (
-        "You are given two documents i.e. Notes and Presentation. Compare them, remove anything that appears in both, and return only the unique content from each in detail. "
-
-        f"DOCUMENT:\n{Summary_text}\n\nDOCUMENT:\n{Summary_text1}"
+        "You are given two documents i.e. clean_transcript and Summary. summary is created by you, act as a self critique to chceck for missing information. If there is any missing information, add it in the summary text. "
+       
+        f"DOCUMENT:\n{Summary_text}\n\nDOCUMENT:\n{clean_transcript}"
     )
     response = ollama_client.chat(
         model=DEEPSEEK_MODEL,
         messages=[{"role": "user", "content": prompt}]
     )
     return response['message']['content']
-Summary_text2= ask_deepseek(Summary_text, Summary_text1)
+Summary_text2= ask_deepseek(Summary_text, clean_transcript)
 print(Summary_text2)
-
-
-# In[5]:
 
 
 QF = [
@@ -130,21 +77,14 @@ QA = [
     "Considering the growth and TCV figures, do you think TCS’s cautious optimism for FY26 is justified? Why or why not?"
 ]
 
-
-
-from ollama import Client
-import re
-# create a client bound to your Docker container
-ollama_client = Client(host="http://127.0.0.1:11434")
-MISTRAL_MODEL= "mistral:7b"
-def ask_mistral(Summary_text2: str, question: str) -> str:
+def ask_deepseek(Summary_text2: str, question: str) -> str:
     prompt = (
-        "You are an expert analyst.  Answer the given questions using  the summary text created by you in one line. All the information is therre in it "
-
+        "You are an expert analyst.  Answer the given questions using  the new summary text created by you in one line. All the information is therre in it "
+       
         f"DOCUMENT:\n{Summary_text2}\n\nQUESTION:\n{question}"
     )
     resp = ollama_client.chat(
-        model=MISTRAL_MODEL,
+        model=DEEPSEEK_MODEL,
         messages=[
             {"role": "system", "content": "You are a factual document QA bot."},
             {"role": "user",   "content": prompt}
@@ -154,65 +94,51 @@ def ask_mistral(Summary_text2: str, question: str) -> str:
     return resp["message"]["content"]
 
 
-# In[13]:
 
-
-LLAMA_MODEL = "llama3"
-def score_response(LLAMA_MODEL: str, answer: str, question: str, mode: str = "hallucination") -> float:
+def score_response_openai(answer: str, question: str, mode: str = "hallucination") -> float:
     """
     mode="hallucination": 0 = fully factual, 100 = fully hallucinated
     mode="relevance":     0 = completely irrelevant, 100 = fully relevant
     """
     if mode == "hallucination":
         score_prompt = (
-            "You are a hallucination detection specialist.  On a scale from 0 to 100, "
+            "You are a hallucination detection specialist. On a scale from 0 to 100, "
             "where 0 means fully factual and 100 means fully hallucinated, rate the following "
-            "answer to the question.  Only reply with the number.\n\n"
+            "answers to the questions. Only reply with the number.\n\n"
             f"QUESTION: {question}\n\nANSWER: {answer}"
         )
     else:
         score_prompt = (
-            "You are a relevance evaluator.  On a scale from 0 to 100, where 0 means "
-            "completely irrelevant and 100 means fully relevant, rate the following answer "
-            "to the question.  Only reply with the number.\n\n"
+            "You are a relevance evaluator. On a scale from 0 to 100, where 0 means "
+            "completely irrelevant and 100 means fully relevant, rate the following answers "
+            "to the questions. Only reply with the number.\n\n"
             f"QUESTION: {question}\n\nANSWER: {answer}"
         )
-    client = ollama_client
-    res = ollama_client.chat(
-
-        model="llama3",
-        messages=[
-            {"role": "system", "content": "You evaluate factual consistency."},
-            {"role": "user",   "content": score_prompt}
-             ],
-    )
-    text = res.message.content.strip()
-    m = re.search(r"(\d+(\.\d+)?)", text)
-    return float(m.group(1)) if m else None
-
-
-# In[14]:
-
-
+    try:
+        response = client.chat.completions.create(
+            model="gpt-4-1106-preview",  # GPT-4 API model
+            messages=[
+                {"role": "system", "content": "You evaluate factual consistency."},
+                {"role": "user", "content": score_prompt}
+            ],
+            temperature=0.0,
+        )
+        score_text = response.choices[0].message.content.strip()
+        m = re.search(r"(\d+(\.\d+)?)", score_text)
+        return float(m.group(1)) if m else None
+    except Exception as e:
+        print(f"Error scoring with OpenAI: {e}")
+        return None
 for q in QF:
-    ans_unique = ask_deepseek(Summary_text2, q)
-    score_uni = score_response(LLAMA_MODEL, ans_unique, q, mode="hallucination")
-
-
+    ans_unique = ask_deepseek(Summary_text, q)
+    score_uni = score_response_openai(ans_unique, q, mode="hallucination")
     print(f"\nQUESTION: {q} \nAnswer {ans_unique} ")
     print("=====================================================================================================================================================")
     print(f" • Summary_text → Hallucination score:     {score_uni}")
-
-
-# In[15]:
-
 
 for q in QA:
-    ans_unique = ask_deepseek(Summary_text2, q)
-    score_uni = score_response(LLAMA_MODEL, ans_unique, q, mode="hallucination")
-
-
+    ans_unique = ask_deepseek(Summary_text, q)
+    score_uni = score_response_openai(ans_unique, q, mode="hallucination")
     print(f"\nQUESTION: {q} \nAnswer {ans_unique} ")
     print("=====================================================================================================================================================")
     print(f" • Summary_text → Hallucination score:     {score_uni}")
-

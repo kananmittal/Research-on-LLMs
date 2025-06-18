@@ -1,8 +1,13 @@
+#!/usr/bin/env python
+# coding: utf-8
+
+# In[3]:
+
+
 import pdfplumber
 from ollama import Client
 import re
 
-pdf_path = "tcs_transcript1.pdf" 
 def extract_clean_transcript(pdf_path, start_page=1, end_page=13):
     transcript = ""
     with pdfplumber.open(pdf_path) as pdf:
@@ -12,6 +17,7 @@ def extract_clean_transcript(pdf_path, start_page=1, end_page=13):
                 transcript += text + "\n"
     return transcript
 
+pdf_path = "tcs_transcript1.pdf"  
 clean_transcript = extract_clean_transcript(pdf_path, start_page=1, end_page=13)  
 
 ollama_client = Client(host="http://127.0.0.1:11434")
@@ -44,74 +50,25 @@ Summary_text= ask_deepseek(clean_transcript)
 print(Summary_text)
 
 
-# In[3]:
-
-
-import pdfplumber
-from ollama import Client
-import re
-
-pdf_path = "notes1.pdf"  
-def extract_clean_notes(pdf_path, start_page=0):
-    notes = ""
-    with pdfplumber.open(pdf_path) as pdf:
-        for page in pdf.pages[start_page:]:
-            text = page.extract_text()
-            if text:
-                notes += text + "\n"
-    return notes
-
-clean_notes = extract_clean_notes(pdf_path, start_page=1)  
-
-ollama_client = Client(host="http://127.0.0.1:11434")
-DEEPSEEK_MODEL = "deepseek-r1:7b"
-def ask_deepseek(clean_notes: str ) -> str:
-    prompt = f"""<|system|>You are a helpful financial analyst assistant.<|user|>
-Let's generate a consolidated summary of the two source document: a transcript of an earnings call (conference call) 
-1) Read through the entire transcript carefully to understand the context.
-2) Identify and extract the key topics and insights discussed in depth from the document.
-3) Pay attention to any numerical data presented in the document.
-4) When including numbers in the summary, ensure they are:
-	a) Explicitly stated values from the document (do not fabricate numbers).
-	b) Appropriately represented with clear context from the document.
-5) Synthesize the extracted information and numbers into a concise summary
- that flows logically.
-Documents:
-=== Notes ===
-{clean_notes}
-
-"""
-
-    response = ollama_client.chat(
-        model=DEEPSEEK_MODEL,
-        messages=[{"role": "user", "content": prompt}]
-    )
-    return response['message']['content']
-
-# Usage:
-Summary_text1= ask_deepseek(clean_presentation)
-print(Summary_text1)
-
-
 # In[4]:
 
 
-def ask_deepseek(Summary_text: str, Summary_text1: str) -> str:
+def ask_deepseek(Summary_text: str, clean_transcript: str) -> str:
     prompt = (
-        "You are given two documents i.e. Notes and Presentation. Compare them, remove anything that appears in both, and return only the unique content from each in detail. "
-
-        f"DOCUMENT:\n{Summary_text}\n\nDOCUMENT:\n{Summary_text1}"
+        "You are given two documents i.e. clean_transcript and Summary. summary is created by you, act as a self critique to chceck for missing information. If there is any missing information, add it in the summary text. "
+       
+        f"DOCUMENT:\n{Summary_text}\n\nDOCUMENT:\n{clean_transcript}"
     )
     response = ollama_client.chat(
         model=DEEPSEEK_MODEL,
         messages=[{"role": "user", "content": prompt}]
     )
     return response['message']['content']
-Summary_text2= ask_deepseek(Summary_text, Summary_text1)
+Summary_text2= ask_deepseek(Summary_text, clean_transcript)
 print(Summary_text2)
 
 
-# In[5]:
+# In[6]:
 
 
 QF = [
@@ -136,15 +93,15 @@ from ollama import Client
 import re
 # create a client bound to your Docker container
 ollama_client = Client(host="http://127.0.0.1:11434")
-MISTRAL_MODEL= "mistral:7b"
-def ask_mistral(Summary_text2: str, question: str) -> str:
-    prompt = (
-        "You are an expert analyst.  Answer the given questions using  the summary text created by you in one line. All the information is therre in it "
 
+def ask_deepseek(Summary_text2: str, question: str) -> str:
+    prompt = (
+        "You are an expert analyst.  Answer the given questions using  the new summary text created by you in one line. All the information is therre in it "
+       
         f"DOCUMENT:\n{Summary_text2}\n\nQUESTION:\n{question}"
     )
     resp = ollama_client.chat(
-        model=MISTRAL_MODEL,
+        model=DEEPSEEK_MODEL,
         messages=[
             {"role": "system", "content": "You are a factual document QA bot."},
             {"role": "user",   "content": prompt}
@@ -154,7 +111,7 @@ def ask_mistral(Summary_text2: str, question: str) -> str:
     return resp["message"]["content"]
 
 
-# In[13]:
+# In[10]:
 
 
 LLAMA_MODEL = "llama3"
@@ -179,7 +136,7 @@ def score_response(LLAMA_MODEL: str, answer: str, question: str, mode: str = "ha
         )
     client = ollama_client
     res = ollama_client.chat(
-
+       
         model="llama3",
         messages=[
             {"role": "system", "content": "You evaluate factual consistency."},
@@ -191,7 +148,7 @@ def score_response(LLAMA_MODEL: str, answer: str, question: str, mode: str = "ha
     return float(m.group(1)) if m else None
 
 
-# In[14]:
+# In[11]:
 
 
 for q in QF:
@@ -204,7 +161,7 @@ for q in QF:
     print(f" • Summary_text → Hallucination score:     {score_uni}")
 
 
-# In[15]:
+# In[12]:
 
 
 for q in QA:
